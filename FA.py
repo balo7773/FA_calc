@@ -255,6 +255,67 @@ class Company:
         print(f"\nFinancial Metrics for {self.company_name}:")
         pprint.pprint(self.output)
 
+    def custom_metric(self, metric_name: str, formula: str):
+        """
+        Calculates a user-defined financial metric for each year using a safe arithmetic formula.
+
+        Args:
+            metric_name (str): Name of the custom metric.
+            formula (str): Arithmetic formula using financial parameters (e.g., 'net_profit / revenue * 100').
+
+        Returns:
+            dict: Results for each year, or error message if invalid.
+
+        Raises:
+            ValueError: If the formula is invalid or unsafe.
+        """
+        import re
+        try:
+            from simpleeval import simple_eval
+        except ImportError:
+            raise ImportError("simpleeval package is required for custom metric evaluation.")
+
+        # Gather all allowed variable names from financial input
+        allowed_vars = set()
+        for fi in self.var_list:
+            allowed_vars.update(fi.keys())
+
+        # Tokenize the formula and validate each token
+        token_pattern = r"[\w\.]+|[\+\-\*/\(\)\^]"
+        tokens = re.findall(token_pattern, formula)
+        for token in tokens:
+            # Accept only allowed variable names, numbers, and arithmetic operators
+            if not (
+                token in allowed_vars or
+                re.match(r"^[\d\.]+$", token) or
+                token in '+-*/()^'
+            ):
+                raise ValueError(f"Invalid token in formula: {token}")
+
+        # Replace '^' with '**' for Python exponentiation
+        safe_formula = formula.replace('^', '**')
+
+        results = {}
+        for fi in self.var_list:
+            # Prepare local variables for evaluation
+            local_vars = {k: v for k, v in fi.items() if k in allowed_vars}
+            try:
+                # Evaluate formula safely using simple_eval
+                val = simple_eval(safe_formula, names=local_vars)
+                results[fi.get('year', 'unknown')] = round(val, 2)
+            except ZeroDivisionError:
+                results[fi.get('year', 'unknown')] = 'Division by zero'
+            except Exception as e:
+                results[fi.get('year', 'unknown')] = f'Error: {str(e)}'
+
+        # Store results in output dictionary
+        for year, value in results.items():
+            if year not in self.output:
+                self.output[year] = {}
+            self.output[year][metric_name] = value
+
+        return results
+
 
 
 '''BUA_CEMENT = Company()
