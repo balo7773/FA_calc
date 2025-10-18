@@ -50,7 +50,14 @@ if __name__ == '__main__':
         print('___________')
         params['market_cap'] = int(input('Enter market cap: '))
           
-        company.add_params(params)
+        try:
+            company.add_params(params)
+        except ValueError as e:
+            print(f"Error adding data: {e}")
+            print("Please re-enter the data for this year.")
+            # In a real app, you might want to re-prompt for this year's data
+            # For this script, we'll exit to prevent bad calculations.
+            exit()
 
     # Calculate and display all metrics
     company.calculate_all_metrics()
