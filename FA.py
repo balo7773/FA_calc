@@ -126,18 +126,22 @@ class Company:
                                       lambda fi: ((fi.get('revenue', 0) - fi.get('COGS', 0)) / fi.get('revenue', 1)) * 100
         )
     
+    def tax_burden(self):
+        """Calculates Tax Burden for all fiscal years."""
+        self.calculate_metrics('tax_burden',
+                                      lambda fi: (fi.get('net_income') / (fi.get('profit_bfor_tax', 0)))
+        )
+    def nopat_margin(self):
+        """Calculates Net Operating Income Margin for all fiscal years."""
+        self.calculate_metrics('nopat_margin',
+                                      lambda fi: (((fi.get('operating_income', 0) * (1 - (fi.get('tax_expense', 0) / fi.get('profit_bfor_tax', 1)))) / fi.get('revenue', 1)) * 100)
+        )
     def return_on_equity(self):
         """Calculates Return on Equity (ROE) for all fiscal years."""
         self.calculate_metrics('ROE',
                                       lambda  fi: (fi.get('net_profit', 0) / fi.get('book_value', 1)) * 100
         )
-    
-    def return_on_investment(self):
-        """Calculates Return on Investment (ROI) for all fiscal years."""
-        self.calculate_metrics('ROI',
-                                      lambda fi: (fi.get('net_profit', 0) / (fi.get('asset', 1) - fi.get('current_liabilities', 0))) * 100
-        )
-    
+
     def return_on_asset(self):
         """Calculates Return on Assets (ROA) for all fiscal years."""
         self.calculate_metrics('ROA',
@@ -150,6 +154,11 @@ class Company:
                                       lambda fi: (fi.get('operating_income', 0) / (fi.get('asset', 1) - fi.get('current_liabilities', 0))) * 100
         )
     
+     def return_on_invested_capital(self):
+        """Calculates Return on Investment (ROI) for all fiscal years."""
+        self.calculate_metrics('ROIC',
+                                      lambda fi: ((fi.get('operating_income', 0) * (1 - (fi.get('tax_expense', 0) / fi.get('profit_bfor_tax', 1)))) / (fi.get('equity', 1) + fi.get('short_term_debt', 0) + fi.get('long_term_debt', 0) - fi.get('cash_and_equivalent', 0)) * 100)
+        )
     def debt_to_equity(self):
         """Calculates Debt to Equity ratio for all fiscal years."""
         self.calculate_metrics('debt_to_equity',
@@ -174,6 +183,11 @@ class Company:
                                       lambda fi: fi.get('revenue', 0) / fi.get('asset', 1)
         )
     
+    def capital_turnover_ratio(self):
+        """Calculates the Capital Turnover Ratio for all fiscal years."""
+        self.calculate_metrics('capital_turnover',
+                                      lambda fi: fi.get('revenue', 0) / (fi.get('asset', 1) - fi.get('current_liabilities', 0))
+        )
     def current_ratio(self):
         """Calculates the Current Ratio for all fiscal years."""
         self.calculate_metrics('current_ratio',
@@ -193,6 +207,11 @@ class Company:
                                       lambda fi: fi.get('cash_and_equivalent', 0)  / fi.get('current_liabilities', 1)
         )
     
+    def earnings_quality_ratio(self):
+        """Calculates the Earnings Quality Ratio for all fiscal years."""
+        self.calculate_metrics('earnings_quality_ratio',
+                                      lambda fi: fi.get('cash_from_opr', 0)  / fi.get('net_profit', 1)
+        )
     
     def cf_interest_coverage_ratio(self):
         """Calculates the Cash Flow Interest Coverage Ratio for all fiscal years."""
