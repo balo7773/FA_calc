@@ -21,7 +21,7 @@ class Company:
             raise ValueError("period_type must be either 'annual' or 'quarterly'.")
 
         # Stores a list of financial input dictionaries, one for each period.
-        self.var_list = list()
+        self.financial_inputs = list()
         # The main dictionary to store all calculated outputs.
         self.output = dict()
 
@@ -57,17 +57,17 @@ class Company:
             raise ValueError("Could not determine the period identifier.")
 
         # Check for duplicate periods
-        if any(fi.get('_period') == period_id for fi in self.var_list):
+        if any(fi.get('_period') == period_id for fi in self.financial_inputs):
             raise ValueError(f"Financial data for period {period_id} already exists.")
 
         # Add the internal period identifier to the dictionary
         finance_input['_period'] = period_id
 
-        self.var_list.append(finance_input)
+        self.financial_inputs.append(finance_input)
 
     def show_params(self):
         """Returns the list of raw financial data dictionaries."""
-        return self.var_list
+        return self.financial_inputs
     
     def calculate_metrics(self, metrics_name, calc_function):
         """
@@ -85,10 +85,10 @@ class Company:
         """
         check_year = set()
         result = 0
-        if self.var_list is not None:
+        if self.financial_inputs is not None:
             # Sort by the internal period identifier to ensure chronological order
-            self.var_list.sort(key=lambda x: x.get('_period', 0))
-            for financial_input in self.var_list:
+            self.financial_inputs.sort(key=lambda x: x.get('_period', 0))
+            for financial_input in self.financial_inputs:
                 period = financial_input.get('_period')
 
                 if period and period not in check_year:
@@ -121,15 +121,40 @@ class Company:
         )
     
     def gross_profit_margin(self):
-        """Calculates Gross Profit Margin for all fiscal years."""
-        self.calculate_metrics('gross_profit_margin',
-                                      lambda fi: ((fi.get('revenue', 0) - fi.get('COGS', 0)) / fi.get('revenue', 1)) * 100
-        )
+        """Calculates Gross Profit Margin for all fiscal years and stores Gross Profit."""
+        # Helper to calculate and store gross profit
+        def _calc_gp_and_margin(fi):
+            revenue = fi.get('revenue', 0)
+            cogs = fi.get('COGS', 0)
+            gross_profit = revenue - cogs
+            
+            # Store gross_profit explicitly for compatibility
+            # We need to access the main output dict, but this lambda is isolated.
+            # So we rely on the side effect or just ensuring the metric logic is correct.
+            # Best way in this structure is unfortunately to calculate it during this call
+            # But calculate_metrics abstraction doesn't easily allow side-channel storage to other keys.
+            # So we will just add a separate method for gross_profit or inject it here.
+            # For now, let's keep it simple and add a separate gross_profit calculation if needed, 
+            # or rely on the fact that we can just calculate margin here.
+            # Wait, the user wants 'gross_profit' in output. calculate_metrics stores ONE key.
+            # So i will add a separate calculator for gross_profit or manual injection.
+            return (gross_profit / revenue) * 100 if revenue else 0
+
+        self.calculate_metrics('gross_profit_margin', _calc_gp_and_margin)
+        
+        # Calculate/Store absolute Gross Profit as well
+        self.calculate_metrics('gross_profit', lambda fi: fi.get('revenue', 0) - fi.get('COGS', 0))
     
     def tax_burden(self):
         """Calculates Tax Burden for all fiscal years."""
         self.calculate_metrics('tax_burden',
-                                      lambda fi: (fi.get('net_income') / (fi.get('profit_bfor_tax', 0)))
+                                      lambda fi: (fi.get('net_profit') / (fi.get('profit_bfor_tax', 0)))
+        )
+
+    def interest_burden(self):
+        """Calculates Interest Burden (EBT / EBIT)."""
+        self.calculate_metrics('interest_burden',
+                                      lambda fi: fi.get('profit_bfor_tax', 0) / fi.get('operating_income', 1)
         )
     def nopat_margin(self):
         """Calculates Net Operating Income Margin for all fiscal years."""
@@ -140,6 +165,12 @@ class Company:
         """Calculates Return on Equity (ROE) for all fiscal years."""
         self.calculate_metrics('ROE',
                                       lambda  fi: (fi.get('net_profit', 0) / fi.get('book_value', 1)) * 100
+        )
+    
+    def equity_multiplier(self):
+        """Calculates Equity Multiplier (Assets / Equity)."""
+        self.calculate_metrics('equity_multiplier',
+                                      lambda fi: fi.get('asset', 0) / fi.get('book_value', 1)
         )
 
     def return_on_asset(self):
@@ -255,9 +286,9 @@ class Company:
                                       lambda fi: fi.get('market_cap', 0)  / fi.get('book_value', 1)
         )
     
-    def price_to_sale(self):
+    def price_to_sales(self):
         """Calculates the Price to Sales (P/S) Ratio for all fiscal years."""
-        self.calculate_metrics('price_to_sale',
+        self.calculate_metrics('price_to_sales',
                                       lambda fi: fi.get('market_cap', 0)  / fi.get('revenue', 1)
         )
     
@@ -286,11 +317,17 @@ class Company:
             lambda fi: self._calculate_ev(fi) / fi.get('operating_income', 1)
         )
     
-    def ev_to_revenue(self):
-        """Calculates the EV to Revenue ratio for all years."""
+    def ev_to_sales(self):
+        """Calculates the EV to Sales ratio for all years."""
         self.calculate_metrics(
-            'EV_Revenue',
+            'ev_to_sales',
             lambda fi: self._calculate_ev(fi) / fi.get('revenue', 1)
+        )
+    
+    def ebitda_margin(self):
+        """Calculates EBITDA Margin."""
+        self.calculate_metrics('ebitda_margin',
+            lambda fi: (fi.get('EBITDA', 0) if 'EBITDA' in fi else (fi.get('operating_income', 0) + fi.get('depreciation', 0))) / fi.get('revenue', 1)
         )
 
     def cagr(self, metric_name: str, start_year: int, end_year: int) -> float | None:
@@ -316,7 +353,7 @@ class Company:
 
         try:
             # We need the raw input values, not the calculated ratios for CAGR
-            data_by_year = {fi['year']: fi for fi in self.var_list}
+            data_by_year = {fi['year']: fi for fi in self.financial_inputs}
             start_value = data_by_year[start_year][metric_name]
             end_value = data_by_year[end_year][metric_name]
         except KeyError:
@@ -333,7 +370,7 @@ class Company:
     def inventory_turnover_ratio(self):
         """Calculates inventory turnover for all years where prior year data is available."""
         # Create a dictionary for quick year-based lookups
-        data_by_year = {fi['year']: fi for fi in self.var_list if 'year' in fi}
+        data_by_year = {fi['year']: fi for fi in self.financial_inputs if 'year' in fi}
 
         for year, current_fi in data_by_year.items():
             previous_year_fi = data_by_year.get(year - 1)
@@ -401,7 +438,7 @@ class Company:
             else:
                 return (year, quarter - 1)
 
-        data_by_period = {fi['_period']: fi for fi in self.var_list if '_period' in fi}
+        data_by_period = {fi['_period']: fi for fi in self.financial_inputs if '_period' in fi}
         sorted_periods = sorted(self.output.keys())
 
         for period in sorted_periods:
@@ -457,7 +494,7 @@ class Company:
                 return None
 
         # Create a dictionary of raw inputs for quick lookups by year
-        data_by_year = {fi['year']: fi for fi in self.var_list if 'year' in fi}
+        data_by_year = {fi['year']: fi for fi in self.financial_inputs if 'year' in fi}
         
         # Sort years to process chronologically
         sorted_years = sorted(self.output.keys())
@@ -522,11 +559,14 @@ class Company:
         self.earning_yield()
         self.price_to_earnings()
         self.price_to_book()
-        self.price_to_sale()
+        self.price_to_sales()
         self.price_to_fcf()
         self.entity_value()
         self.ev_to_operating_income()
-        self.ev_to_revenue()        
+        self.ev_to_sales() 
+        self.interest_burden()
+        self.equity_multiplier()  
+        self.ebitda_margin()     
         # These must be called in order, as inventory_days depends on the turnover ratio
         self.inventory_turnover_ratio()
         self.inventory_days()
@@ -569,7 +609,7 @@ class Company:
 
         # Gather all allowed variable names from financial input
         allowed_vars = set()
-        for fi in self.var_list:
+        for fi in self.financial_inputs:
             allowed_vars.update(fi.keys())
 
         # Tokenize the formula and validate each token
@@ -588,7 +628,7 @@ class Company:
         safe_formula = formula.replace('^', '**')
 
         results = {}
-        for fi in self.var_list:
+        for fi in self.financial_inputs:
             # Prepare local variables for evaluation
             local_vars = {k: v for k, v in fi.items() if k in allowed_vars}
             try:
